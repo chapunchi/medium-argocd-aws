@@ -20,7 +20,7 @@ jobs:
         permissions:
             contents: read
             id-token: write
-            
+
         steps:
             - name: checkout
               uses: actions/checkout@v4
@@ -45,9 +45,9 @@ jobs:
                 buildspec-override: |
                     version: 0.2
                     phases:
-                    build:
-                        commands:
-                        - echo "This runs instead of buildspec.yml"
+                        build:
+                            commands:
+                            - echo "This runs instead of buildspec.yml"
             
             - name: Login to Amazon ECR
               run: |
