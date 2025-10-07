@@ -16,6 +16,11 @@ env:
 jobs:
     dev:
         runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+            id-token: write
+            
         steps:
             - name: checkout
               uses: actions/checkout@v4
