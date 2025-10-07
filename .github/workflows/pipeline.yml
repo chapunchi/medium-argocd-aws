@@ -61,7 +61,7 @@ jobs:
             - name: Push Docker image to ECR
               if: success()
               run: |
-                    docker tag $IMAGE_NAME--${{ github.job }}:$VERSION-${{ github.job }} $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME-${{ github.job }}:$VERSION-${{ github.job }}
+                    docker tag $IMAGE_NAME-${{ github.job }}:$VERSION-${{ github.job }} $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME-${{ github.job }}:$VERSION-${{ github.job }}
                     docker push $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME-${{ github.job }}:$VERSION-${{ github.job }}
 
             
