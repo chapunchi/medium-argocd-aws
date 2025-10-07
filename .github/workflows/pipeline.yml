@@ -1,0 +1,62 @@
+name: ArgoCD pipeline for AWS
+
+on:
+    push:
+        branches: [dev, stg, main]
+    pull_request:
+        branches: [dev, stg, main]
+
+env:
+    IMAGE_TAG: ${{ github.sha }}
+    IMAGE_NAME : argocd
+    REPO_NAME : argocd
+    AWS_ACCOUNT_ID: ${{ secrets.ACCOUNT_ID }}
+    REGION : ${{ secrets.AWS_REGION }}
+
+jobs:
+    dev:
+        runs-on: ubuntu-latest
+        steps:
+            - name: checkout
+              uses: actions/checkout@v4
+
+            - name: Read version
+              id: get_version
+              run: |
+                VERSION=$(cat VERSION)
+                echo "VERSION=$VERSION" >> $GITHUB_ENV
+                echo "Detected version: $VERSION"
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                role-to-assume: arn:aws:iam::${{secrets.ACCOUNT_ID}}:role/${{secrets.ROLE}}
+                aws-region: ${{secrets.AWS_REGION}}
+
+            - name: Run CodeBuild
+              uses: aws-actions/aws-codebuild-run-build@v1
+              with:
+                project-name: ${{secrets.PROJECT}}
+                buildspec-override: |
+                    version: 0.2
+                    phases:
+                    build:
+                        commands:
+                        - echo "This runs instead of buildspec.yml"
+            
+            - name: Login to Amazon ECR
+              run: |
+                aws ecr get-login-password --region ap-southeast-1 \
+                | docker login --username AWS --password-stdin ${{ secrets.ACCOUNT_ID }}.dkr.ecr.ap-southeast-1.amazonaws.com
+
+            - name: Build Docker image
+              run: |
+                docker build -t $IMAGE_NAME-${{ github.job }}:$VERSION-${{ github.job }} .
+
+            - name: Push Docker image to ECR
+              if: success()
+              run: |
+                    docker tag $IMAGE_NAME--${{ github.job }}:$VERSION-${{ github.job }} $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME-${{ github.job }}:$VERSION-${{ github.job }}
+                    docker push $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME-${{ github.job }}:$VERSION-${{ github.job }}
+
+            
