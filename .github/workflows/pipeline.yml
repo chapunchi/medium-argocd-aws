@@ -7,7 +7,6 @@ on:
         branches: [dev, stg, main]
 
 env:
-    IMAGE_TAG: ${{ github.sha }}
     IMAGE_NAME : argocd
     REPO_NAME : argocd
     AWS_ACCOUNT_ID: ${{ secrets.ACCOUNT_ID }}
@@ -63,5 +62,23 @@ jobs:
               run: |
                     docker tag $IMAGE_NAME-${{ github.job }}:$VERSION-${{ github.job }} $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME-${{ github.job }}:$VERSION-${{ github.job }}
                     docker push $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME-${{ github.job }}:$VERSION-${{ github.job }}
+            
+            - name: Checkout GitOps repo
+              uses: actions/checkout@v3
+              with:
+                repository: chapunchi/medium-argocd-gitops
+                path: gitops
+                ssh-key: ${{ secrets.GITOPS_SSH_KEY }}
+                ref: dev
+
+            - name: Update Helm values
+              run: |
+                sed -i "s/tag:.*/tag: $VERSION-${{ github.job }}/" gitops/environments/dev/values-dev.yaml
+                cd gitops
+                git config user.name "github-actions"
+                git config user.email "github-actions@github.com"
+                git add environments/dev/values-dev.yaml
+                git commit -m "Update dev image tag to $VERSION-${{ github.job }}"
+                git push origin dev
 
             
