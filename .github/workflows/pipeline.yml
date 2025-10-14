@@ -67,14 +67,12 @@ jobs:
               uses: actions/checkout@v4
               with:
                 repository: chapunchi/medium-argocd-gitops
-                path: gitops
                 ssh-key: ${{ secrets.GITOPS_SSH_KEY }}
                 ref: dev
 
             - name: Update Helm values
               run: |
-                sed -i "s/tag:.*/tag: $VERSION-${{ github.job }}/" gitops/environments/dev/values-dev.yaml
-                cd gitops
+                sed -i "s/tag:.*/tag: $VERSION-${{ github.job }}/" environments/dev/values-dev.yaml
                 git config user.name "github-actions"
                 git config user.email "github-actions@github.com"
                 git add environments/dev/values-dev.yaml
