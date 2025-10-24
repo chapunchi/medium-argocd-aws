@@ -35,7 +35,7 @@ jobs:
               id: get_env
               run: |
                 if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
-                echo "ENV=prod" >> $GITHUB_ENV
+                echo "ENV=dev" >> $GITHUB_ENV
                 elif [[ "${GITHUB_REF_NAME}" == "stg" ]]; then
                   echo "ENV=stg" >> $GITHUB_ENV
                 else
@@ -83,29 +83,29 @@ jobs:
                     docker tag $IMAGE_NAME:$VERSION $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME-$ENV:$VERSION
                     docker push $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME-$ENV:$VERSION
 
-            # - name: Set GitOps branch
-            #   run: |
-            #     if [ "$ENV" == "prod" ]; then
-            #       echo "GITOPS_BRANCH=master" >> $GITHUB_ENV
-            #     else
-            #       echo "GITOPS_BRANCH=$ENV" >> $GITHUB_ENV
-            #     fi
+            - name: Set GitOps branch
+              run: |
+                if [ "$ENV" == "prod" ]; then
+                  echo "GITOPS_BRANCH=master" >> $GITHUB_ENV
+                else
+                  echo "GITOPS_BRANCH=$ENV" >> $GITHUB_ENV
+                fi
 
-            # - name: Checkout GitOps repo
-            #   uses: actions/checkout@v4
-            #   with:
-            #     repository: chapunchi/medium-argocd-gitops
-            #     ssh-key: ${{ secrets.GITOPS_SSH_KEY }}
-            #     ref: ${{ env.GITOPS_BRANCH }}
+            - name: Checkout GitOps repo
+              uses: actions/checkout@v4
+              with:
+                repository: chapunchi/medium-argocd-gitops
+                ssh-key: ${{ secrets.GITOPS_SSH_KEY }}
+                ref: ${{ env.GITOPS_BRANCH }}
 
-            # - name: Update Helm values
-            #   if: env.ENV != 'prod'
-            #   run: |
-            #     sed -i "s/tag:.*/tag: $VERSION/" environments/$ENV/values-$ENV.yaml
-            #     git config user.name "github-actions"
-            #     git config user.email "github-actions@github.com"
-            #     git add environments/$ENV/values-$ENV.yaml
-            #     git commit -m "Update $ENV image tag to $VERSION"
-            #     git push origin $ENV
+            - name: Update Helm values
+              if: env.ENV != 'prod'
+              run: |
+                sed -i "s/tag:.*/tag: $VERSION/" environments/$ENV/values-$ENV.yaml
+                git config user.name "github-actions"
+                git config user.email "github-actions@github.com"
+                git add environments/$ENV/values-$ENV.yaml
+                git commit -m "Update $ENV image tag to $VERSION"
+                git push origin $ENV
 
             
