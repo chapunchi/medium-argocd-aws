@@ -35,7 +35,7 @@ jobs:
               id: get_env
               run: |
                 if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
-                echo "ENV=dev" >> $GITHUB_ENV
+                echo "ENV=prod" >> $GITHUB_ENV
                 elif [[ "${GITHUB_REF_NAME}" == "stg" ]]; then
                   echo "ENV=stg" >> $GITHUB_ENV
                 else
