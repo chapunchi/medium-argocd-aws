@@ -1,0 +1,111 @@
+name: ArgoCD pipeline for AWS
+
+on:
+    push:
+        branches: [dev, stg, master]
+    pull_request:
+        branches: [dev, stg, master]
+
+env:
+    IMAGE_NAME : argocd
+    REPO_NAME : argocd
+    AWS_ACCOUNT_ID: ${{ secrets.ACCOUNT_ID }}
+    REGION : ${{ secrets.AWS_REGION }}
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+            id-token: write
+
+        steps:
+            - name: checkout
+              uses: actions/checkout@v4
+
+            - name: Read version
+              id: get_version
+              run: |
+                VERSION=$(cat VERSION)
+                echo "VERSION=$VERSION" >> $GITHUB_ENV
+                echo "Detected version: $VERSION"
+
+            - name: Detect environment
+              id: get_env
+              run: |
+                if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
+                echo "ENV=dev" >> $GITHUB_ENV
+                elif [[ "${GITHUB_REF_NAME}" == "stg" ]]; then
+                  echo "ENV=stg" >> $GITHUB_ENV
+                else
+                  echo "ENV=prod" >> $GITHUB_ENV
+                fi
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                role-to-assume: arn:aws:iam::${{secrets.ACCOUNT_ID}}:role/${{secrets.ROLE}}
+                aws-region: ${{secrets.AWS_REGION}}
+
+            - name: Run CodeBuild
+              uses: aws-actions/aws-codebuild-run-build@v1
+              with:
+                project-name: ${{secrets.PROJECT}}
+                buildspec-override: |
+                    version: 0.2
+                    phases:
+                        build:
+                            commands:
+                            - echo "This runs instead of buildspec.yml"
+            
+            - name: Login to Amazon ECR
+              run: |
+                aws ecr get-login-password --region ap-southeast-1 \
+                | docker login --username AWS --password-stdin ${{ secrets.ACCOUNT_ID }}.dkr.ecr.ap-southeast-1.amazonaws.com
+
+            - name: Build Docker image
+              run: |
+                if [ "$ENV" == "prod" ]; then
+                 IMAGE_NAME="$IMAGE_NAME"
+                 VERSION="$VERSION"
+                else
+                 IMAGE_NAME="$IMAGE_NAME-$ENV"
+                 VERSION="$VERSION-$ENV"
+                fi
+                echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+                echo "VERSION=$VERSION" >> $GITHUB_ENV
+                docker build -t $IMAGE_NAME:$VERSION .
+
+            - name: Push Docker image to ECR
+              if: success()
+              run: |
+                    docker tag $IMAGE_NAME:$VERSION $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME-$ENV:$VERSION
+                    docker push $AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME-$ENV:$VERSION
+
+            - name: Set GitOps branch
+              run: |
+                if [ "$ENV" == "prod" ]; then
+                  echo "GITOPS_BRANCH=master" >> $GITHUB_ENV
+                else
+                  echo "GITOPS_BRANCH=$ENV" >> $GITHUB_ENV
+                fi
+
+            - name: Checkout GitOps repo
+              uses: actions/checkout@v4
+              with:
+                repository: chapunchi/medium-argocd-gitops
+                ssh-key: ${{ secrets.GITOPS_SSH_KEY }}
+                ref: ${{ env.GITOPS_BRANCH }}
+
+            - name: Update Helm values
+              if: env.ENV != 'prod'
+              run: |
+                sed -i "s/tag:.*/tag: $VERSION/" environments/$ENV/values-$ENV.yaml
+                git config user.name "github-actions"
+                git config user.email "github-actions@github.com"
+                git add environments/$ENV/values-$ENV.yaml
+                git commit -m "Update $ENV image tag to $VERSION"
+                git push origin $ENV
+
+            
